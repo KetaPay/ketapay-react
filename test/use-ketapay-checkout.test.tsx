@@ -7,26 +7,26 @@ import { CHECKOUT_URL, overlay, post } from './helpers.js'
 describe('useKetaPayCheckout', () => {
   it('[RCT-001] open passes the same options to @ketapay/checkout and returns its handle', async () => {
     const onReady = vi.fn()
-    const onPaid = vi.fn()
+    const onSuccess = vi.fn()
     const onClose = vi.fn()
     const { result } = renderHook(() => useKetaPayCheckout())
 
     let handle!: ReturnType<typeof open>
     act(() => {
-      handle = result.current.open({ url: CHECKOUT_URL, onReady, onPaid, onClose })
+      handle = result.current.open({ url: CHECKOUT_URL, onReady, onSuccess, onClose })
     })
 
     expect(open).toHaveBeenCalledOnce()
-    expect(vi.mocked(open).mock.calls[0]![0]).toMatchObject({ url: CHECKOUT_URL, onReady, onPaid })
+    expect(vi.mocked(open).mock.calls[0]![0]).toMatchObject({ url: CHECKOUT_URL, onReady, onSuccess })
     expect(handle).toBe(vi.mocked(open).mock.results[0]!.value)
 
     post('ready')
     post('paid')
     act(() => result.current.close())
     expect(onReady).toHaveBeenCalledOnce()
-    expect(onPaid).toHaveBeenCalledOnce()
+    expect(onSuccess).toHaveBeenCalledOnce()
     expect(onClose).toHaveBeenCalledOnce()
-    await expect(handle.result).resolves.toBe('paid')
+    await expect(handle.result).resolves.toBe('success')
   })
 
   it('[RCT-001] open and close keep the same identity across renders', () => {

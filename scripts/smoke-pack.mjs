@@ -130,7 +130,7 @@ createRoot(document.getElementById('root')).render(<KetaPayButton url="${CHECKOU
       `import { KetaPayButton, useKetaPayCheckout, type CheckoutResult, type KetaPayButtonProps } from '@ketapay/react'
 export function Shop() {
   const checkout = useKetaPayCheckout()
-  const pay = async (): Promise<CheckoutResult> => checkout.open({ url: '${CHECKOUT_URL}', onPaid() {} }).result
+  const pay = async (): Promise<CheckoutResult> => checkout.open({ url: '${CHECKOUT_URL}', onSuccess() {} }).result
   const props: KetaPayButtonProps = { url: async () => '${CHECKOUT_URL}', className: 'btn', onError: (e: unknown) => e }
   return (
     <>

@@ -9,7 +9,10 @@ export interface KetaPayButtonProps
    * (for example by calling your own endpoint that creates the session).
    */
   url: string | (() => string | Promise<string>)
-  /** Getting the URL failed, or it isn't a KetaPay checkout. Without it, the error is logged. */
+  /**
+   * Getting the URL failed, it isn't a KetaPay checkout, or the checkout didn't load (a `KetaPayCheckoutError`
+   * with `code` `load_failed`). Without it, the error is logged.
+   */
   onError?: (error: unknown) => void
 }
 
@@ -17,7 +20,7 @@ export interface KetaPayButtonProps
 export function KetaPayButton({
   url,
   onReady,
-  onPaid,
+  onSuccess,
   onClose,
   onError,
   children = 'Pay with KetaPay',
@@ -28,15 +31,19 @@ export function KetaPayButton({
   const checkout = useKetaPayCheckout()
   const [loading, setLoading] = useState(false)
 
+  function report(error: unknown) {
+    if (onError) onError(error)
+    else console.error(error)
+  }
+
   async function handleClick(event: MouseEvent<HTMLButtonElement>) {
     event.preventDefault()
     setLoading(true)
     try {
       const target = typeof url === 'function' ? await url() : url
-      checkout.open({ url: target, onReady, onPaid, onClose })
+      checkout.open({ url: target, onReady, onSuccess, onError: report, onClose })
     } catch (error) {
-      if (onError) onError(error)
-      else console.error(error)
+      report(error)
     } finally {
       setLoading(false)
     }
