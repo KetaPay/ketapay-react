@@ -1,0 +1,106 @@
+# End-to-end tests: the built package in a React page in real browsers (Chromium, WebKit, an iPhone-sized
+# WebKit), opening checkouts created on the KetaPay API with a sandbox key. Every scenario is tagged with
+# its RE2E-xxx id from the React test catalogue. Runs on every merge to main, on pull requests that change the SDK or spec, nightly, by hand, and
+# inside Publish to npm.
+#
+# Settings come from Infisical (project ketapay-sdks, shared by every KetaPay SDK, environment staging):
+#   KETAPAY_E2E_BASE_URL, KETAPAY_E2E_SECRET_KEY (required). The checkout URL the API returns must be
+#   reachable from GitHub's runners.
+# Until the required ones exist, the job reports "not configured" and passes, unless `required` is set
+# (the publish workflow sets it for stable releases).
+name: E2E
+
+on:
+  push:
+    branches: [main] # every merge: a breaking change shows up in minutes, not the next morning
+  pull_request:
+    branches: [main] # catch a break before it merges; only the code and tests that can change the result
+    paths:
+      - 'src/**'
+      - 'spec/**'
+      - 'test/e2e/**'
+      - 'playwright.config.ts'
+      - '.github/workflows/e2e.yml'
+      - 'package.json' # a new @ketapay/checkout range changes the overlay these tests drive
+      - 'package-lock.json'
+  workflow_dispatch:
+  schedule:
+    - cron: '0 2 * * *' # nightly, 03:00 Lagos
+  workflow_call:
+    inputs:
+      ref:
+        type: string
+        required: false
+      required:
+        description: Fail when E2E is not configured
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+# A new push to a pull request replaces its running E2E. Other runs never cancel each other.
+concurrency:
+  group: e2e-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  e2e:
+    name: E2E in real browsers
+    # Forks and Dependabot can't log in to Infisical, so their pull requests skip this job
+    if: github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # Infisical login
+    steps:
+      - name: Fetch E2E settings from Infisical
+        uses: Infisical/secrets-action@v1.0.18
+        with:
+          method: 'oidc'
+          oidc-audience: 'https://infisical.com'
+          identity-id: 'ef5c6cbd-0f7e-49a9-a6b7-8d115c2abbd2'
+          project-slug: 'ketapay-sdks-pz5w' # one Infisical project for every KetaPay SDK
+          env-slug: 'staging'
+      - name: Is E2E configured?
+        id: configured
+        env:
+          REQUIRED: ${{ inputs.required }}
+        run: |
+          if [ -n "$KETAPAY_E2E_BASE_URL" ] && [ -n "$KETAPAY_E2E_SECRET_KEY" ]; then
+            echo "yes=true" >> "$GITHUB_OUTPUT"
+          elif [ "$REQUIRED" = "true" ]; then
+            echo "::error::E2E is required for this release but KETAPAY_E2E_BASE_URL / KETAPAY_E2E_SECRET_KEY are not set in Infisical staging."
+            exit 1
+          else
+            echo "### E2E not configured yet: skipped" >> "$GITHUB_STEP_SUMMARY"
+            echo "yes=false" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@v7
+        if: steps.configured.outputs.yes == 'true'
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+      - uses: actions/setup-node@v7
+        if: steps.configured.outputs.yes == 'true'
+        with:
+          node-version: 22
+          cache: npm
+      - if: steps.configured.outputs.yes == 'true'
+        run: npm ci
+      - if: steps.configured.outputs.yes == 'true'
+        run: npm run build
+      - name: Install the browsers
+        if: steps.configured.outputs.yes == 'true'
+        run: npx playwright install --with-deps chromium webkit
+      - name: E2E tests
+        if: steps.configured.outputs.yes == 'true'
+        env:
+          KETAPAY_E2E_RUN_ID: e2e-react-gh-${{ github.run_id }} # stamped on all test data, for cleanup
+        run: npm run test:e2e
+      - name: Upload the Playwright report (traces of failed tests)
+        if: always() && steps.configured.outputs.yes == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 14
