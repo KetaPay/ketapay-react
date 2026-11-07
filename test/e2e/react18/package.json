@@ -1,0 +1,9 @@
+{
+  "name": "ketapay-react-e2e-react18",
+  "private": true,
+  "description": "React 18 for the E2E project chromium-react18 (RE2E-012), kept apart from the repo's React 19.",
+  "dependencies": {
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  }
+}

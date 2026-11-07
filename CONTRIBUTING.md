@@ -9,7 +9,7 @@ src/
 ├── index.ts                   exports, plus KetaPayCheckoutError and the types re-exported from @ketapay/checkout
 ├── use-ketapay-checkout.ts    useKetaPayCheckout(): open and close, and closing on unmount
 └── ketapay-button.tsx         KetaPayButton: a plain button over the hook, url as a string or a function
-test/                          unit tests in jsdom against the real @ketapay/checkout (open wrapped in a spy)
+test/                          unit tests in jsdom against the real @ketapay/checkout (open wrapped in a spy); e2e/ runs real browsers through Playwright
 scripts/                       catalogue sync and hash check, package smoke test, test report
 ```
 
@@ -29,11 +29,18 @@ Every change goes through a PR from a branch. CI runs on each PR, one check per 
 npm test                 # unit tests (jsdom)
 npm run test:coverage    # with coverage
 npm run build && npm run smoke:pack   # the packed package in empty React 18 and 19 projects
+npm run build && npm run test:e2e     # real browsers, needs the E2E settings below
 ```
+
+`test/e2e/` drives Chromium, WebKit and an iPhone-sized WebKit through Playwright. Each test creates a fresh checkout session on the API with a sandbox key, serves a small React page bundled against `dist/`, opens the checkout from it and checks what a business would see. They only test what React adds; the overlay itself is covered in `ketapay-js`. The `chromium-react18` project runs the whole suite again with the page built on React 18, the lowest version we support; React 18 has its own install in `test/e2e/react18/` (its `react-dom` can't share a `package.json` with React 19), and `npm run test:e2e` installs it first.
+
+Settings: `KETAPAY_E2E_BASE_URL` and `KETAPAY_E2E_SECRET_KEY` (see `test/e2e/env.ts`). The checkout URL the API returns must be reachable from the machine running the browsers.
+
+The **E2E** workflow runs on every merge to `main`, on pull requests that change the SDK or spec, nightly and by hand, reading the settings from Infisical (`ketapay-sdks`, staging); until they exist it reports "not configured" and passes. **Publish to npm** runs it on the release tag and refuses a stable release unless it passed.
 
 ## The test catalogue
 
-`spec/test-catalogue.md` is synced from `documentation/openapi/public/SDK_BROWSER_TEST_CATALOGUE.md`. This package covers the `RCT` rows and the package rows that apply to it (`BPKG-001`, `003`, `004`, `005`, `007`); the rest belong to `ketapay-js`. Tag each test with its ID in the test name. New scenario: add the row in the documentation repo first, `npm run sync-catalogue` here, then write the tagged test.
+`spec/test-catalogue.md` and `spec/react-test-catalogue.md` are synced from `SDK_BROWSER_TEST_CATALOGUE.md` and `SDK_REACT_TEST_CATALOGUE.md` in `documentation/openapi/public/`. This package covers the `RCT` and `RE2E` rows and the package rows that apply to it (`BPKG-001`, `003`, `004`, `005`, `007`); the rest belong to `ketapay-js`. Tag each test with its ID in the test name. New scenario: add the row in the documentation repo first, `npm run sync-catalogue` here, then write the tagged test.
 
 ## Supported versions
 
@@ -41,7 +48,7 @@ React 18 or later (a peer dependency), TypeScript 5.0 or later, and the browsers
 
 ## Versioning and publishing
 
-Same as every KetaPay SDK: conventional commits, Release Please release PR on every push to `main`, merging it tags the version, and the manual **Publish to npm** workflow (dudox only, `publish` environment) runs CI on the tag, smoke-tests the package and publishes with provenance. Pre-releases go under the `next` dist-tag. A new release is needed only for React changes, a newer `@ketapay/checkout` feature, or a wider version range.
+Same as every KetaPay SDK: conventional commits, Release Please release PR on every push to `main`, merging it tags the version, and the manual **Publish to npm** workflow (dudox only, `publish` environment) runs CI and E2E on the tag, smoke-tests the package and publishes with provenance. Pre-releases go under the `next` dist-tag. A new release is needed only for React changes, a newer `@ketapay/checkout` feature, or a wider version range.
 
 Switches (repo variables): `RELEASES_ENABLED` and `NPM_PUBLISH_ENABLED`.
 
