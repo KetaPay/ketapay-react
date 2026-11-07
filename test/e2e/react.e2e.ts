@@ -46,7 +46,10 @@ test('[RE2E-003] closing without paying fires onClose, and the button opens the 
   await payButton(page).click()
   await expect.poll(() => events(page)).toEqual(['ready'])
 
-  await page.getByRole('button', { name: 'Close checkout' }).click()
+  // Asserted first, so a missing button fails the test rather than timing it out (test.fail ignores timeouts).
+  const close = page.getByRole('button', { name: 'Close checkout' })
+  await expect(close).toBeVisible()
+  await close.click()
   await expect(overlay(page)).toHaveCount(0)
   expect(await events(page)).toEqual(['ready', 'closed'])
   expect((await getSession(session.id)).status).toBe('open')
